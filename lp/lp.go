@@ -62,6 +62,22 @@ func LoadProblemFromFile(filename string) *LinearProblem {
 		}
 		constraints = append(constraints, constraintRow)
 	}
+	for i, constraintType := range constraintTypes {
+		if constraintType == "=" {
+			// adding >=
+			constraints = append(constraints, constraints[i])
+			rhs = append(rhs, rhs[i])
+			constraintTypes = append(constraintTypes, ">=")
+			// adding <=
+			constraints = append(constraints, constraints[i])
+			rhs = append(rhs, rhs[i])
+			constraintTypes = append(constraintTypes, "<=")
+			// removing
+			constraints = append(constraints[:i], constraints[i+1:]...)
+			rhs = append(rhs[:i], rhs[i+1:]...)
+			constraintTypes = append(constraintTypes[:i], constraintTypes[i+1:]...)
+		}
+	}
 	return &LinearProblem{
 		ObjectiveFunction: objectiveFunction,
 		IsMaximization:    isMaximization,

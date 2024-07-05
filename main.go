@@ -7,7 +7,7 @@ import (
 
 func main() {
 	fmt.Println("hello plne")
-	problem := lp.LoadProblemFromFile("file.txt")
+	problem := lp.LoadProblemFromFile("file2.txt")
 	fmt.Println(problem.ObjectiveFunction)
 	fmt.Println(problem.IsMaximization)
 	fmt.Println(problem.Constraints)
