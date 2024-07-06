@@ -73,6 +73,7 @@ func (lp *LinearProblem) SaveSolution() {
 	fmt.Printf("Z=%v\n", lp.Rhs[len(lp.Rhs)-1])
 	lp.OptimalObjectiveFunctionValue = lp.Rhs[len(lp.Rhs)-1]
 }
+
 func (lp *LinearProblem) Phase1() *LinearProblem {
 	for {
 		pivotColumn := lp.findPivotColumn()
@@ -289,14 +290,8 @@ func (lp *LinearProblem) addConstraintVariables() *LinearProblem {
 		OriginalProblem:         lp,
 	}
 }
-
-func LoadProblemFromFile(filename string) *LinearProblem {
-	file, err := os.ReadFile(filename)
-	if err != nil {
-		log.Fatal("invalid filename provided")
-	}
-	content := string(file)
-	problemLines := strings.Split(content, "\n")
+func CreateProblem(problemContent string) *LinearProblem {
+	problemLines := strings.Split(problemContent, "\n")
 	if len(problemLines) == 0 {
 		log.Fatal("empty file provided")
 	}
@@ -350,6 +345,15 @@ func LoadProblemFromFile(filename string) *LinearProblem {
 		InitialConstraintLength: len(constraints),
 		InitialObjectiveLength:  len(objectiveFunction),
 	}
+
+}
+func LoadProblemFromFile(filename string) *LinearProblem {
+	file, err := os.ReadFile(filename)
+	if err != nil {
+		log.Fatal("invalid filename provided")
+	}
+	content := string(file)
+	return CreateProblem(content)
 }
 func (lp *LinearProblem) DisplaySimplexTableau() {
 	fmt.Println("Simplex Tableau:")

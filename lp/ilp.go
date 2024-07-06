@@ -9,7 +9,6 @@ import (
 
 type IntegerLineaProblem struct {
 	InitialProblem                LinearProblem
-	LinearProblemStack            []LinearProblem
 	HasSolution                   bool
 	OptimalVariableValues         []float64
 	OptimalObjectiveFunctionValue float64
@@ -25,8 +24,14 @@ func LoadIntegerLinearProblemFromFile(filename string) *IntegerLineaProblem {
 		InitialProblem: *problem,
 	}
 }
+func CreateIntegerLinearProblem(content string) *IntegerLineaProblem {
+	problem := CreateProblem(content)
+	return &IntegerLineaProblem{
+		InitialProblem: *problem,
+	}
+}
 
-func (ilp *IntegerLineaProblem) Solve() {
+func (ilp *IntegerLineaProblem) Solve() *LinearProblem {
 	problemQueue := utils.NewQueue[LinearProblem]()
 	problemQueue.Enqueue(ilp.InitialProblem)
 	iteration := 1
@@ -47,7 +52,7 @@ func (ilp *IntegerLineaProblem) Solve() {
 					fmt.Printf("x%v=%v\n", i+1, value)
 				}
 				fmt.Printf("Z=%v\n", solution.OptimalObjectiveFunctionValue)
-				return
+				return solution
 			} else {
 				for i, boundFloatValue := range solution.OptimalVariableValues {
 					integerBound := int64(math.Floor(boundFloatValue))
@@ -77,4 +82,5 @@ func (ilp *IntegerLineaProblem) Solve() {
 		}
 		iteration++
 	}
+	return nil
 }
