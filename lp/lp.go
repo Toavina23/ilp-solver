@@ -24,9 +24,10 @@ type LinearProblem struct {
 	Phase1Problem                 *LinearProblem
 	OptimalVariableValues         []float64
 	OptimalObjectiveFunctionValue float64
+	HasSolution                   bool
 }
 
-func (lp *LinearProblem) TwoPhasedSimplexAlgorithm() {
+func (lp *LinearProblem) Solve() *LinearProblem {
 	fmt.Println("Starting Two-Phased Simplex Algorithm")
 
 	feasibleSolution := lp.addConstraintVariables()
@@ -37,7 +38,8 @@ func (lp *LinearProblem) TwoPhasedSimplexAlgorithm() {
 	phase1Solution := feasibleSolution.Phase1()
 	if phase1Solution == nil {
 		fmt.Println("No feasible solution found in Phase 1.")
-		return
+		lp.HasSolution = false
+		return nil
 	}
 	fmt.Println("Phase 1 Complete. Feasible solution found")
 
@@ -45,11 +47,14 @@ func (lp *LinearProblem) TwoPhasedSimplexAlgorithm() {
 	optimalSolution := phase1Solution.Phase2()
 	if optimalSolution == nil {
 		fmt.Println("No optimal solution found in Phase 2.")
-		return
+		lp.HasSolution = false
+		return nil
 	}
 	fmt.Println("Optimal Solution:")
 	optimalSolution.DisplaySimplexTableau()
 	optimalSolution.SaveSolution()
+	optimalSolution.HasSolution = true
+	return optimalSolution
 }
 
 func (lp *LinearProblem) SaveSolution() {
@@ -81,7 +86,6 @@ func (lp *LinearProblem) Phase1() *LinearProblem {
 		}
 		pivotRow := lp.findPivotRow(pivotColumn)
 		if pivotRow == -1 {
-			log.Fatal("Unbounded solution")
 			return nil // Unbounded solution
 		}
 		lp.BaseVariable[pivotRow] = pivotColumn
@@ -396,4 +400,51 @@ func (lp *LinearProblem) DisplaySimplexTableau() {
 		}
 	}
 	fmt.Printf("%-8.2f\n", lp.Rhs[len(lp.Rhs)-1])
+}
+
+func (lp *LinearProblem) Clone() *LinearProblem {
+	clone := &LinearProblem{
+		ObjectiveFunction:       make([]float64, len(lp.ObjectiveFunction)),
+		Constraints:             make([][]float64, len(lp.Constraints)),
+		ConstraintTypes:         make([]string, len(lp.ConstraintTypes)),
+		Rhs:                     make([]float64, len(lp.Rhs)),
+		IsMaximization:          lp.IsMaximization,
+		SurplusVar:              lp.SurplusVar,
+		ArtificialVars:          lp.ArtificialVars,
+		InitialConstraintLength: lp.InitialConstraintLength,
+		InitialObjectiveLength:  lp.InitialObjectiveLength,
+		BaseVariable:            make([]int, len(lp.BaseVariable)),
+		HasSolution:             lp.HasSolution,
+	}
+
+	// Deep copy slice fields
+	copy(clone.ObjectiveFunction, lp.ObjectiveFunction)
+	copy(clone.ConstraintTypes, lp.ConstraintTypes)
+	copy(clone.Rhs, lp.Rhs)
+	copy(clone.BaseVariable, lp.BaseVariable)
+
+	// Deep copy 2D slice
+	for i, constraint := range lp.Constraints {
+		clone.Constraints[i] = make([]float64, len(constraint))
+		copy(clone.Constraints[i], constraint)
+	}
+
+	// Deep copy OptimalVariableValues
+	if lp.OptimalVariableValues != nil {
+		clone.OptimalVariableValues = make([]float64, len(lp.OptimalVariableValues))
+		copy(clone.OptimalVariableValues, lp.OptimalVariableValues)
+	}
+
+	// Copy OptimalObjectiveFunctionValue
+	clone.OptimalObjectiveFunctionValue = lp.OptimalObjectiveFunctionValue
+
+	// Handle pointer fields
+	if lp.OriginalProblem != nil {
+		clone.OriginalProblem = lp.OriginalProblem.Clone()
+	}
+	if lp.Phase1Problem != nil {
+		clone.Phase1Problem = lp.Phase1Problem.Clone()
+	}
+
+	return clone
 }
