@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Integer linear problem Solver</title>
+    <link rel="stylesheet" type="text/css" href="/assets/styles.css" />
+    <script src="https://code.jquery.com/jquery-3.7.1.slim.min.js"
+        integrity="sha256-kmHvs0B+OpCW5GVHUNjv9rOmY0IvSIRcf7zGUDTDQM8=" crossorigin="anonymous"></script>
+</head>
+
+<body>
+    <div class="container" id="problemInfo">
+        <div class="card">
+            <h2 class="text-center mb-20">Problem Initialization</h2>
+            <form id="problemInfoForm">
+                <div class="form-group">
+                    <label for="decisionVariableNumber" class="form-label">How many decision variables do you have
+                        ?</label>
+                    <input type="number" name="decisionVariableNumber" id="decisionVariableNumber" class="form-input">
+                </div>
+
+                <div class="form-group">
+                    <label for="constraintNumber" class="form-label">How many constraint number do you have</label>
+                    <input type="number" name="constraintNumber" id="constraintNumber" class="form-input">
+                </div>
+
+                <div class="text-center mt-20">
+                    <button type="submit" class="btn btn-primary">Send Message</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="" id="problemInputContainer" hidden>
+        <form id="problemInput" method="post">
+            <h2 class="text-center mb-20">Enter the objective function and the constraints</h2>\
+            <div class="form-group">
+                <label for="problemType" class="form-label">Choose the problem type</label>
+                <select id="problemType" class="form-select">
+                    <option value="max">Maximization</option>
+                    <option value="min">Minimization</option>
+                </select>
+            </div>
+            <div class="equations" id="equations">
+            </div>
+            <div class="text-center mt-20">
+                <button type="submit" id="solveButton" class="btn btn-primary">Solve</button>
+            </div>
+        </form>
+    </div>
+    <script>
+        let variableNumber = 0
+        let constraintNumber = 0
+        $("#problemInfoForm").on("submit", function (e) {
+            e.preventDefault()
+            variableNumber = $("#decisionVariableNumber").val()
+            constraintNumber = $("#constraintNumber").val()
+            let strForm = ""
+            const problemInput = $("#problemInputContainer")
+            const equations = $("#equations")
+            const container = $("<div></div>").addClass("equation")
+            for (let j = 0; j < variableNumber; j++) {
+                container.append(`
+                    <input type="number" name="obj${j}" id="obj${j}" class="form-input"/>
+                    ${j == variableNumber - 1 ? `X${j + 1}` : `X${j + 1} + `}
+                    `)
+            }
+            equations.append('<h3 class="mb-20">Objective function</h3>')
+            equations.append(container)
+            equations.append('<h3 class="mb-20">Constraints</h3>')
+            for (let i = 0; i < constraintNumber; i++) {
+                const container = $("<div></div>").addClass("equation")
+                for (let j = 0; j < variableNumber; j++) {
+                    container.append(`
+                    <input type="number" name="c${i}x${j}" id="c${i}x${j}" class="form-input"/>
+                    ${j == variableNumber - 1 ? "" : `X${j + 1} + `}
+                    `)
+                }
+                container.append(
+                    `
+                    <select id="ct${i}" class="form-select">
+                        <option value=">=">&gt=</option>
+                        <option value="<=">&lt=</option>
+                        <option value="=">=</option>
+                    </select>
+                    <input type="number" name="rhs${i}" id="rhs${i}" class="form-input"/>`)
+                equations.append(container)
+            }
+            problemInput.removeAttr("hidden").addClass("card")
+            $("#problemInfo").attr("hidden", true)
+
+        })
+        $("#problemInput").on("submit", async function (e) {
+            e.preventDefault()
+            $("#solveButton").attr("disabled", true)
+            problemString = `${$(`#problemType`).val()}`
+            for (let j = 0; j < variableNumber; j++) {
+                problemString += ` ${$(`#obj${j}`).val()}`
+            }
+            problemString += "\n"
+            for (let i = 0; i < constraintNumber; i++) {
+                let problemRow = ""
+                for (let j = 0; j < variableNumber; j++) {
+                    problemRow += ` ${$(`#c${i}x${j}`).val()}`
+                }
+                problemRow += ` ${$(`#ct${i}`).val()} `
+                problemRow += $(`#rhs${i}`).val()
+                problemRow = problemRow.trim()
+                if (i < constraintNumber-1) {
+                    problemRow += "\n"
+                }
+                problemString += problemRow
+            }
+            console.log(problemString)
+            const response = await fetch("/solve", {
+                method: "POST",
+                body: JSON.stringify({ problemString: problemString })
+            })
+            $("#solveButton").attr("disabled", false)
+            console.log(response)
+            console.log(response.body)
+        })
+    </script>
+</body>
+
+</html>
