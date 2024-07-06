@@ -10,18 +10,20 @@ import (
 )
 
 type LinearProblem struct {
-	ObjectiveFunction       []float64
-	Constraints             [][]float64
-	ConstraintTypes         []string
-	Rhs                     []float64
-	IsMaximization          bool
-	SurplusVar              int
-	ArtificialVars          int
-	InitialConstraintLength int
-	InitialObjectiveLength  int
-	BaseVariable            []int
-	OriginalProblem         *LinearProblem
-	Phase1Problem           *LinearProblem
+	ObjectiveFunction             []float64
+	Constraints                   [][]float64
+	ConstraintTypes               []string
+	Rhs                           []float64
+	IsMaximization                bool
+	SurplusVar                    int
+	ArtificialVars                int
+	InitialConstraintLength       int
+	InitialObjectiveLength        int
+	BaseVariable                  []int
+	OriginalProblem               *LinearProblem
+	Phase1Problem                 *LinearProblem
+	OptimalVariableValues         []float64
+	OptimalObjectiveFunctionValue float64
 }
 
 func (lp *LinearProblem) TwoPhasedSimplexAlgorithm() {
@@ -45,11 +47,27 @@ func (lp *LinearProblem) TwoPhasedSimplexAlgorithm() {
 		fmt.Println("No optimal solution found in Phase 2.")
 		return
 	}
-
 	fmt.Println("Optimal Solution:")
 	optimalSolution.DisplaySimplexTableau()
+	optimalSolution.SaveSolution()
 }
 
+func (lp *LinearProblem) SaveSolution() {
+	for i := 0; i < len(lp.OriginalProblem.ObjectiveFunction); i++ {
+		optimalVariableValue := 0.0
+		for j, variableIndex := range lp.BaseVariable {
+			// this means that xi is in the base variable, so it have solution different of 0
+			if variableIndex == i {
+				optimalVariableValue = lp.Rhs[j]
+				break
+			}
+		}
+		lp.OptimalVariableValues = append(lp.OptimalVariableValues, optimalVariableValue)
+		fmt.Printf("x%v=%v\n", i+1, optimalVariableValue)
+	}
+	fmt.Printf("Z=%v\n", lp.Rhs[len(lp.Rhs)-1])
+	lp.OptimalObjectiveFunctionValue = lp.Rhs[len(lp.Rhs)-1]
+}
 func (lp *LinearProblem) Phase1() *LinearProblem {
 	for {
 		pivotColumn := lp.findPivotColumn()
