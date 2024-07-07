@@ -32,8 +32,8 @@
             </form>
         </div>
     </div>
-    <div class="" id="problemInputContainer" hidden>
-        <form id="problemInput" method="post">
+    <div id="problemInputContainer" hidden>
+        <form id="problemInput" method="post" class="spaced">
             <h2 class="text-center mb-20">Enter the objective function and the constraints</h2>\
             <div class="form-group">
                 <label for="problemType" class="form-label">Choose the problem type</label>
@@ -48,6 +48,13 @@
                 <button type="submit" id="solveButton" class="btn btn-primary">Solve</button>
             </div>
         </form>
+        <div id="solution" class="spaced solution-container">
+            <h2>Optimal Solution:</h2>
+        </div>
+        <div class="spaced simplex-tableau-container">
+            <h2>Optimal simplex tableau:</h2>
+            <div id="table-container" class="table-responsive"></div>
+        </div>
     </div>
     <script>
         let variableNumber = 0
@@ -74,14 +81,14 @@
                 for (let j = 0; j < variableNumber; j++) {
                     container.append(`
                     <input type="number" name="c${i}x${j}" id="c${i}x${j}" class="form-input"/>
-                    ${j == variableNumber - 1 ? "" : `X${j + 1} + `}
+                    ${j == variableNumber - 1 ?`X${j + 1}` : `X${j + 1} + `}
                     `)
                 }
                 container.append(
                     `
                     <select id="ct${i}" class="form-select">
-                        <option value=">=">&gt=</option>
                         <option value="<=">&lt=</option>
+                        <option value=">=">&gt=</option>
                         <option value="=">=</option>
                     </select>
                     <input type="number" name="rhs${i}" id="rhs${i}" class="form-input"/>`)
@@ -107,7 +114,7 @@
                 problemRow += ` ${$(`#ct${i}`).val()} `
                 problemRow += $(`#rhs${i}`).val()
                 problemRow = problemRow.trim()
-                if (i < constraintNumber-1) {
+                if (i < constraintNumber - 1) {
                     problemRow += "\n"
                 }
                 problemString += problemRow
@@ -118,8 +125,29 @@
                 body: JSON.stringify({ problemString: problemString })
             })
             $("#solveButton").attr("disabled", false)
-            console.log(response)
-            console.log(response.body)
+            $("#table-container").empty()
+            const table = $("<table></table>").addClass("table").addClass("table-striped")
+            const solution = await response.json()
+            console.log(solution)
+            const header = $("<tr></tr>")
+            for (let i = 0; i < solution.headers.length; i++) {
+                header.append(`<th>${solution.headers[i]}</th>`)
+            }
+            table.append(header)
+            for (let i = 0; i < solution.tableau.length; i++) {
+                const row = $("<tr></tr>")
+                row.append(`<td><b>${solution.baseVariables[i]}</b></td>`)
+                for (let j = 0; j < solution.tableau[i].length; j++) {
+                    row.append(`<td>${solution.tableau[i][j]}</td>`)
+                }
+                table.append(row)
+            }
+            const solutionContainer = $("#solution")
+            for (let i = 0; i < solution.optimalVariableValue.length; i++) {
+                solutionContainer.append(`<span><b>X${i}</b> = ${solution.optimalVariableValue[i]}</span>`)
+            }
+            solutionContainer.append(`<span><b>Z</b>= ${solution.optimalObjectiveFunctionValue}</span>`)
+            $("#table-container").append(table)
         })
     </script>
 </body>
