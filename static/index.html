@@ -8,6 +8,7 @@
     <link rel="stylesheet" type="text/css" href="/assets/styles.css" />
     <script src="https://code.jquery.com/jquery-3.7.1.slim.min.js"
         integrity="sha256-kmHvs0B+OpCW5GVHUNjv9rOmY0IvSIRcf7zGUDTDQM8=" crossorigin="anonymous"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/zero-md@3?register"></script>
 </head>
 
 <body>
@@ -34,7 +35,7 @@
     </div>
     <div id="problemInputContainer" hidden>
         <form id="problemInput" method="post" class="spaced">
-            <h2 class="text-center mb-20">Enter the objective function and the constraints</h2>\
+            <h2 class="text-center mb-20">Enter the objective function and the constraints</h2>
             <div class="form-group">
                 <label for="problemType" class="form-label">Choose the problem type</label>
                 <select id="problemType" class="form-select">
@@ -48,10 +49,27 @@
                 <button type="submit" id="solveButton" class="btn btn-primary">Solve</button>
             </div>
         </form>
-        <div id="solution" class="spaced solution-container">
-            <h2>Optimal Solution:</h2>
-        </div>
         <div class="spaced simplex-tableau-container">
+            <div id="solution" class="spaced solution-container">
+                <h2>Problem: </h2>
+                <zero-md>
+                    <template>
+                        <link rel="stylesheet"
+                            href="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11/styles/github.min.css" />
+                        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0/dist/katex.min.css" />
+                    </template>
+                    <script type="text/markdown" id="problemExpression"></script>
+                </zero-md>
+                <h2>Optimal Solution:</h2>
+                <zero-md>
+                    <template>
+                        <link rel="stylesheet"
+                            href="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11/styles/github.min.css" />
+                        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0/dist/katex.min.css" />
+                    </template>
+                    <script type="text/markdown" id="solutionExpression"></script>
+                </zero-md>
+            </div>
             <h2>Optimal simplex tableau:</h2>
             <div id="table-container" class="table-responsive"></div>
         </div>
@@ -81,7 +99,7 @@
                 for (let j = 0; j < variableNumber; j++) {
                     container.append(`
                     <input type="number" name="c${i}x${j}" id="c${i}x${j}" class="form-input"/>
-                    ${j == variableNumber - 1 ?`X${j + 1}` : `X${j + 1} + `}
+                    ${j == variableNumber - 1 ? `X${j + 1}` : `X${j + 1} + `}
                     `)
                 }
                 container.append(
@@ -126,28 +144,34 @@
             })
             $("#solveButton").attr("disabled", false)
             $("#table-container").empty()
-            const table = $("<table></table>").addClass("table").addClass("table-striped")
-            const solution = await response.json()
-            console.log(solution)
-            const header = $("<tr></tr>")
-            for (let i = 0; i < solution.headers.length; i++) {
-                header.append(`<th>${solution.headers[i]}</th>`)
-            }
-            table.append(header)
-            for (let i = 0; i < solution.tableau.length; i++) {
-                const row = $("<tr></tr>")
-                row.append(`<td><b>${solution.baseVariables[i]}</b></td>`)
-                for (let j = 0; j < solution.tableau[i].length; j++) {
-                    row.append(`<td>${solution.tableau[i][j]}</td>`)
+            const responseBody = await response.json()
+            console.log(responseBody)
+            $("#problemExpression").append(responseBody.solutionProblemString)
+            $("#solutionExpression").append(responseBody.solutionString)
+
+            for (let i = 0; i <
+                responseBody.tableaux.length; i++) {
+                const solution = responseBody.tableaux[i]
+                const title = `<h3>
+                Phase-${solution.phase} Iteration-${solution.iteration}</h3>`
+                const table = $("<table></table>").addClass("table").addClass("table-striped")
+                const header = $("<tr></tr>")
+                for (let i = 0; i < solution.headers.length; i++) {
+                    header.append(`<th>${solution.headers[i]}</th>`)
                 }
-                table.append(row)
+                table.append(header)
+                for (let i = 0; i < solution.tableau.length; i++) {
+                    const row = $("<tr></tr>")
+                    row.append(`<td><b>${solution.baseVariables[i]}</b></td>`)
+                    for (let j = 0; j < solution.tableau[i].length; j++) {
+                        row.append(`<td>${solution.tableau[i][j]}
+                            </td>`)
+                    }
+                    table.append(row)
+                }
+                $("#table-container").append(title)
+                $("#table-container").append(table)
             }
-            const solutionContainer = $("#solution")
-            for (let i = 0; i < solution.optimalVariableValue.length; i++) {
-                solutionContainer.append(`<span><b>X${i}</b> = ${solution.optimalVariableValue[i]}</span>`)
-            }
-            solutionContainer.append(`<span><b>Z</b>= ${solution.optimalObjectiveFunctionValue}</span>`)
-            $("#table-container").append(table)
         })
     </script>
 </body>

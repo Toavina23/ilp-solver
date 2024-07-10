@@ -9,6 +9,13 @@ import (
 	"strings"
 )
 
+type SimplexTableau struct {
+	Phase         int8        `json:"phase"`
+	Iteration     int32       `json:"iteration"`
+	BaseVariables []string    `json:"baseVariables"`
+	Headers       []string    `json:"headers"`
+	Tableau       [][]float64 `json:"tableau"`
+}
 type LinearProblem struct {
 	ObjectiveFunction             []float64
 	Constraints                   [][]float64
@@ -25,13 +32,115 @@ type LinearProblem struct {
 	OptimalVariableValues         []float64
 	OptimalObjectiveFunctionValue float64
 	HasSolution                   bool
+	SolutionSteps                 []*SimplexTableau
 }
 
+func (lp *LinearProblem) CreateSolutionMarkdownExpression() string {
+	var sb strings.Builder
+
+	sb.WriteString("```math\n")
+	for i, value := range lp.OptimalVariableValues {
+		if value == 0 {
+			continue
+		}
+		if i == len(lp.OptimalVariableValues)-1 {
+			if value == 1 {
+				sb.WriteString(fmt.Sprintf("x_%v = ", i+1))
+			} else {
+				sb.WriteString(fmt.Sprintf("%8.2fx_%v = ", value, i+1))
+			}
+		} else {
+			if value == 1 {
+				sb.WriteString(fmt.Sprintf("x_%v + ", i+1))
+			} else {
+				sb.WriteString(fmt.Sprintf("%8.2fx_%v + ", value, i+1))
+			}
+		}
+	}
+	sb.WriteString(fmt.Sprintf("%8.2f\n", lp.OptimalObjectiveFunctionValue))
+	sb.WriteString("```")
+	return sb.String()
+}
+func (lp *LinearProblem) CreateMarkdownExpression() string {
+	var sb strings.Builder
+	problemType := "Minimize"
+	if lp.IsMaximization {
+		problemType = "Maximize"
+	}
+	sb.WriteString("```math\n")
+	sb.WriteString("\\begin{aligned}\n")
+	sb.WriteString(fmt.Sprintf("&\\text{%s:}\\\\\n", problemType))
+	objectiveFunction := ""
+	for i, value := range lp.OriginalProblem.ObjectiveFunction {
+		if value == 0 {
+			continue
+		}
+		if i == len(lp.OriginalProblem.ObjectiveFunction)-1 {
+			if value == 1 {
+				objectiveFunction += fmt.Sprintf("x_%v", i+1)
+			} else {
+				objectiveFunction += fmt.Sprintf("%8.2fx_%v", value, i+1)
+			}
+		} else {
+			if value == 1 {
+				objectiveFunction += fmt.Sprintf("x_%v", i+1)
+			} else {
+
+				objectiveFunction += fmt.Sprintf("%8.2fx_%v + ", value, i+1)
+			}
+		}
+	}
+	sb.WriteString(fmt.Sprintf("&Z = %s \\\\[10pt]\n", objectiveFunction))
+	sb.WriteString("&\\text{Subject to:} \\\\\n")
+	sb.WriteString("&\\left\\{\n")
+	sb.WriteString("\\begin{array}{l}\n")
+	for i, constraint := range lp.OriginalProblem.Constraints {
+		constraintRow := ""
+		for j, value := range constraint {
+			if value == 0 {
+				continue
+			}
+			if j == len(constraint)-1 {
+				if value == 1 {
+					constraintRow += fmt.Sprintf("x_%v", j+1)
+				} else {
+					constraintRow += fmt.Sprintf("%8.2fx_%v", value, j+1)
+				}
+			} else {
+				if value == 1 {
+					constraintRow += fmt.Sprintf("x_%v + ", j+1)
+				} else {
+
+					constraintRow += fmt.Sprintf("%8.2fx_%v + ", value, j+1)
+				}
+			}
+		}
+		constraintRow = strings.Trim(constraintRow, "+ ")
+		constraintType := "\\leq"
+		switch lp.OriginalProblem.ConstraintTypes[i] {
+		case ">=":
+			constraintType = "\\geq"
+		case "=":
+			constraintType = "\\eq"
+		}
+		constraintRow += constraintType
+		constraintRow += fmt.Sprintf("%8.2f", lp.OriginalProblem.Rhs[i])
+		constraintRow += "\\\\\n"
+		sb.WriteString(constraintRow)
+	}
+	sb.WriteString("\\end{array}\n")
+	sb.WriteString("\\right.\n")
+	sb.WriteString("\\end{aligned}\n")
+	sb.WriteString("```")
+
+	return sb.String()
+}
 func (lp *LinearProblem) Solve() *LinearProblem {
 	fmt.Println("Starting Two-Phased Simplex Algorithm")
 
 	feasibleSolution := lp.addConstraintVariables()
 	fmt.Println("Initial Tableau for Phase 1:")
+	feasibleSolution.SaveSimplexTableau(0, 0)
 	feasibleSolution.DisplaySimplexTableau()
 
 	// Phase 1
@@ -75,6 +184,7 @@ func (lp *LinearProblem) SaveSolution() {
 }
 
 func (lp *LinearProblem) Phase1() *LinearProblem {
+	iteration := 0
 	for {
 		pivotColumn := lp.findPivotColumn()
 		if pivotColumn == -1 {
@@ -91,12 +201,15 @@ func (lp *LinearProblem) Phase1() *LinearProblem {
 		}
 		lp.BaseVariable[pivotRow] = pivotColumn
 		lp.pivot(pivotRow, pivotColumn)
+		lp.SaveSimplexTableau(1, int32(iteration))
 		lp.DisplaySimplexTableau()
+		iteration++
 	}
 }
 
 func (lp *LinearProblem) Phase2() *LinearProblem {
 	// Remove artificial variables and reset objective function
+	iteration := 0
 	lp.removeArtificialVariables()
 	for {
 		pivotColumn := lp.findPivotColumn()
@@ -111,7 +224,9 @@ func (lp *LinearProblem) Phase2() *LinearProblem {
 		}
 		lp.BaseVariable[pivotRow] = pivotColumn
 		lp.pivot(pivotRow, pivotColumn)
-
+		lp.SaveSimplexTableau(2, int32(iteration))
+		lp.DisplaySimplexTableau()
+		iteration++
 	}
 }
 
@@ -356,54 +471,18 @@ func LoadProblemFromFile(filename string) *LinearProblem {
 	return CreateProblem(content)
 }
 func (lp *LinearProblem) DisplaySimplexTableau() {
-	fmt.Println("Simplex Tableau:")
-
-	// Calculate the number of variables and constraints
-	numOrigVars := lp.InitialObjectiveLength
-	numConstraints := lp.InitialConstraintLength
-	totalVars := len(lp.ObjectiveFunction)
-
-	// Print header
-	fmt.Printf("%-6s", "Basic")
-	for i := 0; i < numOrigVars; i++ {
-		fmt.Printf("%-8s", fmt.Sprintf("x%d", i+1))
+	lastSimplexTableau := lp.SolutionSteps[len(lp.SolutionSteps)-1]
+	for _, header := range lastSimplexTableau.Headers {
+		fmt.Printf("%-8s", header)
 	}
-	slackSurplusCount := 0
-	artificialCount := 0
-	for i := numOrigVars; i < totalVars; i++ {
-		if slackSurplusCount < lp.SurplusVar {
-			fmt.Printf("%-8s", fmt.Sprintf("s%d", slackSurplusCount+1))
-			slackSurplusCount++
-		} else {
-			fmt.Printf("%-8s", fmt.Sprintf("a%d", artificialCount+1))
-			artificialCount++
+	fmt.Printf("\n")
+	for i, row := range lastSimplexTableau.Tableau {
+		fmt.Printf("%-8s", lastSimplexTableau.BaseVariables[i])
+		for _, value := range row {
+			fmt.Printf("%-8.5f", value)
 		}
+		fmt.Printf("\n")
 	}
-	fmt.Printf("%-8s\n", "RHS")
-
-	// Print constraints
-	for i := 0; i < numConstraints; i++ {
-		fmt.Printf("%-6s", fmt.Sprintf("s%d", i+1))
-		for j := 0; j < totalVars; j++ {
-			fmt.Printf("%-8.2f", lp.Constraints[i][j])
-		}
-		fmt.Printf("%-8.2f\n", lp.Rhs[i])
-	}
-
-	// Print objective function
-	if lp.IsMaximization {
-		fmt.Printf("%-6s", "Z")
-	} else {
-		fmt.Printf("%-6s", "-Z")
-	}
-	for _, coef := range lp.ObjectiveFunction {
-		if lp.IsMaximization {
-			fmt.Printf("%-8.2f", coef)
-		} else {
-			fmt.Printf("%-8.2f", coef)
-		}
-	}
-	fmt.Printf("%-8.2f\n", lp.Rhs[len(lp.Rhs)-1])
 }
 
 func (lp *LinearProblem) Clone() *LinearProblem {
@@ -451,4 +530,45 @@ func (lp *LinearProblem) Clone() *LinearProblem {
 	}
 
 	return clone
+}
+func (lp *LinearProblem) SaveSimplexTableau(phase int8, iteration int32) {
+	headers := make([]string, len(lp.ObjectiveFunction))
+	tableau := make([][]float64, len(lp.Constraints))
+	for i := 0; i < len(lp.ObjectiveFunction); i++ {
+		if i < lp.InitialObjectiveLength {
+			headers[i] = fmt.Sprintf("x%v", i+1)
+		} else if i >= lp.InitialObjectiveLength && i < lp.InitialObjectiveLength+lp.SurplusVar {
+			headers[i] = fmt.Sprintf("s%v", i+1-(lp.SurplusVar-1))
+		} else {
+			headers[i] = fmt.Sprintf("a%v", i+1-(lp.ArtificialVars-1))
+		}
+	}
+	for i, constraint := range lp.Constraints {
+		tableau[i] = constraint
+		tableau[i] = append(tableau[i], lp.Rhs[i])
+	}
+	var baseVariables []string
+	for _, baseIndex := range lp.BaseVariable {
+		if baseIndex < lp.InitialObjectiveLength {
+			baseVariables = append(baseVariables, headers[baseIndex])
+		} else {
+			baseVariables = append(baseVariables, headers[baseIndex])
+		}
+	}
+	headers = append([]string{
+		"F",
+	}, headers...)
+	headers = append(headers, []string{
+		"RHS",
+	}...)
+	baseVariables = append(baseVariables, "Z")
+	tableau = append(tableau, lp.ObjectiveFunction)
+	tableau[len(tableau)-1] = append(tableau[len(tableau)-1], lp.Rhs[len(lp.Rhs)-1])
+	lp.SolutionSteps = append(lp.SolutionSteps, &SimplexTableau{
+		BaseVariables: baseVariables,
+		Headers:       headers,
+		Tableau:       tableau,
+		Phase:         phase,
+		Iteration:     iteration,
+	})
 }

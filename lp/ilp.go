@@ -30,7 +30,17 @@ func CreateIntegerLinearProblem(content string) *IntegerLineaProblem {
 		InitialProblem: *problem,
 	}
 }
-
+func isIntegerSolution(lp LinearProblem) bool {
+	if !isInteger(lp.OptimalObjectiveFunctionValue) {
+		return false
+	}
+	for _, value := range lp.OptimalVariableValues {
+		if !isInteger(value) {
+			return false
+		}
+	}
+	return true
+}
 func (ilp *IntegerLineaProblem) Solve() *LinearProblem {
 	problemQueue := utils.NewQueue[LinearProblem]()
 	problemQueue.Enqueue(ilp.InitialProblem)
@@ -46,7 +56,7 @@ func (ilp *IntegerLineaProblem) Solve() *LinearProblem {
 			log.Fatal("This integer linear problem have no solution")
 		}
 		if solution != nil {
-			if isInteger(solution.OptimalObjectiveFunctionValue) {
+			if isIntegerSolution(*solution) {
 				fmt.Println("Integer solution found")
 				for i, value := range solution.OptimalVariableValues {
 					fmt.Printf("x%v=%v\n", i+1, value)

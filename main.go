@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"pnle/lp"
 
@@ -26,44 +25,10 @@ func main() {
 		}
 		problem := lp.CreateIntegerLinearProblem(requestBody.ProblemString)
 		solution := problem.Solve()
-		headers := make([]string, len(solution.ObjectiveFunction))
-		tableau := make([][]float64, len(solution.Constraints))
-		for i := 0; i < len(solution.ObjectiveFunction); i++ {
-			if i < solution.InitialObjectiveLength {
-				headers[i] = fmt.Sprintf("x%v", i+1)
-			} else if i >= solution.InitialObjectiveLength && i < solution.InitialObjectiveLength+solution.SurplusVar {
-				headers[i] = fmt.Sprintf("s%v", i+1-(solution.SurplusVar-1))
-			} else {
-				headers[i] = fmt.Sprintf("a%v", i+1-(solution.ArtificialVars-1))
-			}
-		}
-		for i, constraint := range solution.Constraints {
-			tableau[i] = constraint
-			tableau[i] = append(tableau[i], solution.Rhs[i])
-		}
-		var baseVariables []string
-		for _, baseIndex := range solution.BaseVariable {
-			if baseIndex < solution.InitialObjectiveLength {
-				baseVariables = append(baseVariables, headers[baseIndex])
-			} else {
-				baseVariables = append(baseVariables, headers[baseIndex])
-			}
-		}
-		headers = append([]string{
-			"F",
-		}, headers...)
-		headers = append(headers, []string{
-			"RHS",
-		}...)
-		baseVariables = append(baseVariables, "Z")
-		tableau = append(tableau, solution.ObjectiveFunction)
-		tableau[len(tableau)-1] = append(tableau[len(tableau)-1], solution.Rhs[len(solution.Rhs)-1])
 		ctx.JSON(200, gin.H{
-			"baseVariables":                 baseVariables,
-			"headers":                       headers,
-			"tableau":                       tableau,
-			"optimalVariableValue":          solution.OptimalVariableValues,
-			"optimalObjectiveFunctionValue": solution.OptimalObjectiveFunctionValue,
+			"solutionProblemString": solution.CreateMarkdownExpression(),
+			"tableaux":              solution.SolutionSteps,
+			"solutionString":        solution.CreateSolutionMarkdownExpression(),
 		})
 	})
 	err := r.Run()
