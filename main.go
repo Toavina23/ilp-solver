@@ -9,9 +9,6 @@ import (
 
 func main() {
 
-	/*problem := lp.LoadIntegerLinearProblemFromFile("file5.txt")
-	problem.Solve()*/
-
 	r := gin.Default()
 	r.Static("/assets", "./static")
 	r.GET("/", func(ctx *gin.Context) {

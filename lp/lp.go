@@ -4,17 +4,18 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"math/big"
 	"os"
 	"strconv"
 	"strings"
 )
 
 type SimplexTableau struct {
-	Phase         int8        `json:"phase"`
-	Iteration     int32       `json:"iteration"`
-	BaseVariables []string    `json:"baseVariables"`
-	Headers       []string    `json:"headers"`
-	Tableau       [][]float64 `json:"tableau"`
+	Phase         int8       `json:"phase"`
+	Iteration     int32      `json:"iteration"`
+	BaseVariables []string   `json:"baseVariables"`
+	Headers       []string   `json:"headers"`
+	Tableau       [][]string `json:"tableau"`
 }
 type LinearProblem struct {
 	ObjectiveFunction             []float64
@@ -35,6 +36,55 @@ type LinearProblem struct {
 	SolutionSteps                 []*SimplexTableau
 }
 
+func valueToFraction(f float64) string {
+	r := new(big.Rat)
+	r.SetFloat64(f)
+	if r.IsInt() {
+		return fmt.Sprintf("%d", int64(f))
+	}
+	a, b := simplifyFraction(r.Num().Int64(), r.Denom().Int64(), 1e6)
+	return fmt.Sprintf("%d/%d", a, b)
+}
+func simplifyFraction(numerator, denominator int64, precision float64) (int64, int64) {
+	gcd := func(a, b int64) int64 {
+		for b != 0 {
+			a, b = b, a%b
+		}
+		return a
+	}
+
+	// First, reduce the fraction to its simplest form
+	g := gcd(numerator, denominator)
+	n, d := numerator/g, denominator/g
+
+	// If the denominator is already small enough, return the reduced fraction
+	if math.Abs(float64(d)) <= precision {
+		return n, d
+	}
+
+	// Otherwise, find an approximate fraction
+	f := float64(n) / float64(d)
+	var a, b int64 = int64(math.Floor(f)), 1
+	var c, e int64 = int64(math.Ceil(f)), 1
+
+	for math.Abs(float64(b+e)) <= precision {
+		mediant := float64(a+c) / float64(b+e)
+		if f < mediant {
+			c, e = a+c, b+e
+		} else if f > mediant {
+			a, b = a+c, b+e
+		} else {
+			return a + c, b + e
+		}
+	}
+
+	// Choose the closer approximation
+	if math.Abs(float64(n)/float64(d)-float64(a)/float64(b)) <
+		math.Abs(float64(n)/float64(d)-float64(c)/float64(e)) {
+		return a, b
+	}
+	return c, e
+}
 func (lp *LinearProblem) CreateSolutionMarkdownExpression() string {
 	var sb strings.Builder
 
@@ -476,13 +526,13 @@ func LoadProblemFromFile(filename string) *LinearProblem {
 func (lp *LinearProblem) DisplaySimplexTableau() {
 	lastSimplexTableau := lp.SolutionSteps[len(lp.SolutionSteps)-1]
 	for _, header := range lastSimplexTableau.Headers {
-		fmt.Printf("%-8s		", header)
+		fmt.Printf("%-8s	", header)
 	}
 	fmt.Printf("\n")
 	for i, row := range lastSimplexTableau.Tableau {
-		fmt.Printf("%-8s		", lastSimplexTableau.BaseVariables[i])
+		fmt.Printf("%-8s	", lastSimplexTableau.BaseVariables[i])
 		for _, value := range row {
-			fmt.Printf("%-8.5f		", value)
+			fmt.Printf("%-s		", value)
 		}
 		fmt.Printf("\n")
 	}
@@ -536,7 +586,7 @@ func (lp *LinearProblem) Clone() *LinearProblem {
 }
 func (lp *LinearProblem) SaveSimplexTableau(phase int8, iteration int32) {
 	headers := make([]string, len(lp.ObjectiveFunction))
-	tableau := make([][]float64, len(lp.Constraints))
+	tableau := make([][]string, len(lp.Constraints))
 	for i := 0; i < len(lp.ObjectiveFunction); i++ {
 		if i < lp.InitialObjectiveLength {
 			headers[i] = fmt.Sprintf("x%v", i+1)
@@ -547,8 +597,12 @@ func (lp *LinearProblem) SaveSimplexTableau(phase int8, iteration int32) {
 		}
 	}
 	for i, constraint := range lp.Constraints {
-		tableau[i] = constraint
-		tableau[i] = append(tableau[i], lp.Rhs[i])
+		constraintRow := make([]string, len(constraint))
+		for j, value := range constraint {
+			constraintRow[j] = valueToFraction(value)
+		}
+		tableau[i] = constraintRow
+		tableau[i] = append(tableau[i], valueToFraction(lp.Rhs[i]))
 	}
 	var baseVariables []string
 	for _, baseIndex := range lp.BaseVariable {
@@ -565,8 +619,12 @@ func (lp *LinearProblem) SaveSimplexTableau(phase int8, iteration int32) {
 		"RHS",
 	}...)
 	baseVariables = append(baseVariables, "Z")
-	tableau = append(tableau, lp.ObjectiveFunction)
-	tableau[len(tableau)-1] = append(tableau[len(tableau)-1], lp.Rhs[len(lp.Rhs)-1])
+	strObjectiveFunction := make([]string, len(lp.ObjectiveFunction))
+	for i, value := range lp.ObjectiveFunction {
+		strObjectiveFunction[i] = valueToFraction(value)
+	}
+	tableau = append(tableau, strObjectiveFunction)
+	tableau[len(tableau)-1] = append(tableau[len(tableau)-1], valueToFraction(lp.Rhs[len(lp.Rhs)-1]))
 	lp.SolutionSteps = append(lp.SolutionSteps, &SimplexTableau{
 		BaseVariables: baseVariables,
 		Headers:       headers,
