@@ -47,17 +47,17 @@ func (lp *LinearProblem) CreateSolutionMarkdownExpression() string {
 			if value == 1 {
 				sb.WriteString(fmt.Sprintf("x_%v = ", i+1))
 			} else {
-				sb.WriteString(fmt.Sprintf("%8.2fx_%v = ", value, i+1))
+				sb.WriteString(fmt.Sprintf("%vx_%v = ", math.Round(value), i+1))
 			}
 		} else {
 			if value == 1 {
 				sb.WriteString(fmt.Sprintf("x_%v + ", i+1))
 			} else {
-				sb.WriteString(fmt.Sprintf("%8.2fx_%v + ", value, i+1))
+				sb.WriteString(fmt.Sprintf("%vx_%v + ", math.Round(value), i+1))
 			}
 		}
 	}
-	sb.WriteString(fmt.Sprintf("%8.2f\n", lp.OptimalObjectiveFunctionValue))
+	sb.WriteString(fmt.Sprintf("%v\n", math.Round(lp.OptimalObjectiveFunctionValue)))
 	sb.WriteString("```")
 	return sb.String()
 }
@@ -307,8 +307,10 @@ func (lp *LinearProblem) removeArtificialVariables() {
 	newObjectiveFunction := make([]float64, len(lp.ObjectiveFunction))
 	copy(newObjectiveFunction, lp.OriginalProblem.ObjectiveFunction)
 	// this will maintain the problem as a minimization problem
-	for i := range newObjectiveFunction {
-		newObjectiveFunction[i] *= -1
+	if !lp.OriginalProblem.IsMaximization {
+		for i := range newObjectiveFunction {
+			newObjectiveFunction[i] *= -1
+		}
 	}
 	coeffs := make([]float64, len(lp.ObjectiveFunction))
 	copy(coeffs, lp.OriginalProblem.ObjectiveFunction)
@@ -320,6 +322,7 @@ func (lp *LinearProblem) removeArtificialVariables() {
 	}
 	lp.ObjectiveFunction = newObjectiveFunction
 	lp.Rhs[len(lp.Rhs)-1] = objectiveFunctionRhsValue
+	lp.IsMaximization = lp.OriginalProblem.IsMaximization
 }
 
 func (lp *LinearProblem) addConstraintVariables() *LinearProblem {
@@ -473,13 +476,13 @@ func LoadProblemFromFile(filename string) *LinearProblem {
 func (lp *LinearProblem) DisplaySimplexTableau() {
 	lastSimplexTableau := lp.SolutionSteps[len(lp.SolutionSteps)-1]
 	for _, header := range lastSimplexTableau.Headers {
-		fmt.Printf("%-8s", header)
+		fmt.Printf("%-8s		", header)
 	}
 	fmt.Printf("\n")
 	for i, row := range lastSimplexTableau.Tableau {
-		fmt.Printf("%-8s", lastSimplexTableau.BaseVariables[i])
+		fmt.Printf("%-8s		", lastSimplexTableau.BaseVariables[i])
 		for _, value := range row {
-			fmt.Printf("%-8.5f", value)
+			fmt.Printf("%-8.5f		", value)
 		}
 		fmt.Printf("\n")
 	}
